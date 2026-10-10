@@ -37,6 +37,7 @@ class TargetCRS:
     """The decision: where to measure, why, and what was assumed along the way."""
 
     source_label: str  # the dataset's CRS, e.g. "EPSG:4326"
+    source_crs: CRS  # the same CRS as an object, used to build transformers
     source_assumed: bool  # True when the dataset had no CRS and we assumed 4326
     measurement_crs: CRS
     measurement_label: str  # e.g. "EPSG:32644" or "LAEA(lat_0=..,lon_0=..)"
@@ -129,6 +130,7 @@ def resolve_target_crs(
         assert resolved.meters_per_unit is not None
         result = TargetCRS(
             source_label=resolved.label,
+            source_crs=resolved.crs,
             source_assumed=assumed,
             measurement_crs=resolved.crs,
             measurement_label=resolved.label,
@@ -160,6 +162,7 @@ def resolve_target_crs(
         choice = choose_projection(corners, max_utm_offset_deg=max_utm_offset_deg)
         result = TargetCRS(
             source_label=resolved.label,
+            source_crs=resolved.crs,
             source_assumed=assumed,
             measurement_crs=choice.crs,
             measurement_label=choice.label,
