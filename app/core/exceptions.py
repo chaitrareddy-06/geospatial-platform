@@ -67,6 +67,12 @@ class CorruptKMLError(FileValidationError):
     error_code = "corrupt_kml"
     default_message = "The KML file is malformed or unreadable."
 
+    
+class CorruptShapefileError(FileValidationError):
+    status_code = 422
+    error_code = "corrupt_shapefile"
+    default_message = "The Shapefile could not be read."
+
 
 # ---- Processing errors ----
 class CRSResolutionError(AppError):
