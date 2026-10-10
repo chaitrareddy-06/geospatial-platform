@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, Request, Response
 
 from app.api.error_handlers import register_exception_handlers
-from app.api.v1 import health
+from app.api.v1 import files, health
 from app.core.config import settings
 from app.core.logging_config import configure_logging, request_id_ctx
 
@@ -43,6 +43,10 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(health.router, prefix=settings.api_v1_prefix)
+    app.include_router(files.router, prefix=settings.api_v1_prefix)
+    # The assignment's exact paths (/api/files/...) are aliases of the v1 routes.
+    # Same router, mounted twice, hidden from the docs so there is one source of truth.
+    app.include_router(files.router, prefix="/api", include_in_schema=False)
 
     return app
 
