@@ -13,8 +13,9 @@ class Feature:
     index: int
     geometry: BaseGeometry | None
     properties: dict[str, Any] = field(default_factory=dict)
-    skip_reason: str | None = None
+    skip_reason: str | None = None  # human-readable sentence
     repaired: bool = False
+    skip_code: str | None = None  # stable machine code, e.g. "empty_geometry"
 
     @property
     def kind(self) -> GeometryKind:
@@ -30,8 +31,8 @@ class Feature:
     def is_skipped(self) -> bool:
         return self.skip_reason is not None
 
-    def with_skip_reason(self, reason: str) -> Feature:
-        return replace(self, skip_reason=reason)
+    def with_skip_reason(self, reason: str, code: str | None = None) -> Feature:
+        return replace(self, skip_reason=reason, skip_code=code)
 
     def with_geometry(self, geometry: BaseGeometry, repaired: bool = True) -> Feature:
         return replace(self, geometry=geometry, repaired=repaired)

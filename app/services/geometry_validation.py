@@ -12,11 +12,12 @@ from app.domain.entities.dataset import ParsedDataset
 from app.domain.entities.feature import Feature
 from app.domain.enums.geometry_kind import GeometryKind
 
-# Skip-reason categories (used later as metric labels)
+# Skip-reason categories (stored on each feature and used as metric labels)
 REASON_EMPTY = "empty_geometry"
 REASON_UNKNOWN_TYPE = "unknown_geometry_type"
 REASON_NON_FINITE = "non_finite_coordinates"
 REASON_REPAIR_FAILED = "repair_failed"
+REASON_SKIPPED_BY_PARSER = "skipped_by_parser"
 
 
 @dataclass(frozen=True)
@@ -66,14 +67,24 @@ def _validate_feature(feature: Feature) -> tuple[Feature, str | None, bool]:
 
     if feature.kind is GeometryKind.UNKNOWN:
         reason = f"Unsupported geometry type: {geometry.geom_type}"
-        return feature.with_skip_reason(reason), REASON_UNKNOWN_TYPE, False
+        return (
+            feature.with_skip_reason(reason, code=REASON_UNKNOWN_TYPE),
+            REASON_UNKNOWN_TYPE,
+            False,
+        )
 
     if geometry.is_empty:
-        return feature.with_skip_reason("Geometry is empty"), REASON_EMPTY, False
+        return (
+            feature.with_skip_reason("Geometry is empty", code=REASON_EMPTY),
+            REASON_EMPTY,
+            False,
+        )
 
     if _has_non_finite(geometry):
         return (
-            feature.with_skip_reason("Geometry has NaN or infinite coordinates"),
+            feature.with_skip_reason(
+                "Geometry has NaN or infinite coordinates", code=REASON_NON_FINITE
+            ),
             REASON_NON_FINITE,
             False,
         )
@@ -86,7 +97,9 @@ def _validate_feature(feature: Feature) -> tuple[Feature, str | None, bool]:
         if cleaned is None:
             # Defensive: a non-empty collection always keeps at least one part.
             return (
-                feature.with_skip_reason("Collection has no usable parts"),
+                feature.with_skip_reason(
+                    "Collection has no usable parts", code=REASON_EMPTY
+                ),
                 REASON_EMPTY,
                 False,
             )
@@ -101,14 +114,17 @@ def _validate_feature(feature: Feature) -> tuple[Feature, str | None, bool]:
             fixed = make_valid(geometry)
         except Exception as exc:  # noqa: BLE001 - one bad feature must not stop the file
             return (
-                feature.with_skip_reason(f"Could not repair geometry: {exc}"),
+                feature.with_skip_reason(
+                    f"Could not repair geometry: {exc}", code=REASON_REPAIR_FAILED
+                ),
                 REASON_REPAIR_FAILED,
                 was_invalid,
             )
         if fixed.is_empty or not fixed.is_valid:
             return (
                 feature.with_skip_reason(
-                    f"Repair produced no usable geometry ({explain_validity(geometry)})"
+                    f"Repair produced no usable geometry ({explain_validity(geometry)})",
+                    code=REASON_REPAIR_FAILED,
                 ),
                 REASON_REPAIR_FAILED,
                 was_invalid,
@@ -134,9 +150,22 @@ def validate_dataset(dataset: ParsedDataset) -> tuple[ParsedDataset, ValidationR
         try:
             new_feature, category, was_invalid = _validate_feature(feature)
         except Exception as exc:  # noqa: BLE001 - last-resort isolation
-            new_feature = feature.with_skip_reason(f"Validation failed: {exc}")
+            new_feature = feature.with_skip_reason(
+                f"Validation failed: {exc}", code=REASON_REPAIR_FAILED
+            )
             category = REASON_REPAIR_FAILED
             was_invalid = False
+
+        if was_skipped and (
+            new_feature.skip_reason != feature.skip_reason
+            or new_feature.skip_code != feature.skip_code
+        ):
+            # The parser skipped it first, so its reason and code stay the record.
+            new_feature = replace(
+                new_feature,
+                skip_reason=feature.skip_reason,
+                skip_code=feature.skip_code,
+            )
 
         new_features.append(new_feature)
         if was_invalid:
@@ -147,7 +176,7 @@ def validate_dataset(dataset: ParsedDataset) -> tuple[ParsedDataset, ValidationR
             if not was_skipped and category:
                 reasons[category] += 1
             elif was_skipped:
-                reasons["skipped_by_parser"] += 1
+                reasons[REASON_SKIPPED_BY_PARSER] += 1
         elif new_feature.repaired:
             repaired += 1
         else:

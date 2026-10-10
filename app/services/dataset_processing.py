@@ -11,7 +11,7 @@ Order of work
 Failure behaviour
 -----------------
 * A bad FEATURE never stops the file: it becomes a "skipped" or "failed"
-  entry with a reason.
+  entry with a reason (a sentence) and a reason_code (a stable code).
 * A bad DATASET (no CRS, no usable geometry, extent that cannot be
   converted) raises ``CRSResolutionError``. The caller (the job runner)
   turns that into a FAILED job with the reason.
@@ -32,6 +32,7 @@ from pyproj.exceptions import ProjError
 
 from app.core.exceptions import CRSResolutionError
 from app.domain.entities.dataset import ParsedDataset
+from app.domain.entities.feature import Feature
 from app.domain.enums.file_kind import FileKind
 from app.domain.enums.geometry_kind import GeometryKind
 from app.services.geodesic import (
@@ -40,8 +41,12 @@ from app.services.geodesic import (
     build_lonlat_transformer,
     measure_feature_checked,
 )
-from app.services.geometry_validation import ValidationReport, validate_dataset
-from app.services.measurement import Measurement, build_transformer
+from app.services.geometry_validation import (
+    REASON_SKIPPED_BY_PARSER,
+    ValidationReport,
+    validate_dataset,
+)
+from app.services.measurement import FeatureMeasurement, Measurement, build_transformer
 from app.services.projection_strategy import MAX_UTM_OFFSET_DEG
 from app.services.target_crs import TargetCRS, resolve_target_crs
 
@@ -57,7 +62,8 @@ class ProcessedFeature:
     index: int
     kind: GeometryKind
     status: str  # "measured" | "skipped" | "failed"
-    reason: str | None
+    reason: str | None  # human-readable sentence
+    reason_code: str | None  # stable machine code; None when measured
     repaired: bool
     properties: dict[str, Any]
     measurement: Measurement | None
@@ -101,6 +107,15 @@ def _build_transformers(target: TargetCRS) -> tuple[Any | None, Any | None]:
         ) from exc
 
 
+def _reason_code(feature: Feature, result: FeatureMeasurement) -> str | None:
+    """Stable code for a skipped or failed feature; None when it was measured."""
+    if result.status == "skipped":
+        return feature.skip_code or REASON_SKIPPED_BY_PARSER
+    if result.status == "failed":
+        return result.reason
+    return None
+
+
 def process_dataset(
     dataset: ParsedDataset,
     *,
@@ -134,6 +149,7 @@ def process_dataset(
                 kind=feature.kind,
                 status=result.status,
                 reason=result.reason,
+                reason_code=_reason_code(feature, result),
                 repaired=result.repaired,
                 properties=dict(feature.properties),
                 measurement=result.measurement,
