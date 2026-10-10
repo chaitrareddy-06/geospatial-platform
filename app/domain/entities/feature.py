@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -8,12 +10,11 @@ from app.domain.enums.geometry_kind import GeometryKind
 
 @dataclass(frozen=True)
 class Feature:
-    """One feature from an uploaded file, in a source-independent form."""
-
     index: int
     geometry: BaseGeometry | None
     properties: dict[str, Any] = field(default_factory=dict)
     skip_reason: str | None = None
+    repaired: bool = False
 
     @property
     def kind(self) -> GeometryKind:
@@ -29,6 +30,8 @@ class Feature:
     def is_skipped(self) -> bool:
         return self.skip_reason is not None
 
-    def with_skip_reason(self, reason: str) -> "Feature":
-        """Return a copy marked as skipped (Feature itself is immutable)."""
+    def with_skip_reason(self, reason: str) -> Feature:
         return replace(self, skip_reason=reason)
+
+    def with_geometry(self, geometry: BaseGeometry, repaired: bool = True) -> Feature:
+        return replace(self, geometry=geometry, repaired=repaired)
