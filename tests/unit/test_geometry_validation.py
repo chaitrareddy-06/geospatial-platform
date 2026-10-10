@@ -137,3 +137,35 @@ def test_original_dataset_not_mutated():
 def test_report_counts_add_up():
     _, report = validate_dataset(make_dataset(SQUARE, BOWTIE, Polygon(), Point()))
     assert report.valid + report.repaired + report.skipped == report.total
+
+
+def test_report_counts_geometry_collections():
+    gc = GeometryCollection([SQUARE, Point(1, 1)])
+    _, report = validate_dataset(make_dataset(gc, SQUARE))
+    assert report.geometry_collections == 1
+
+
+def test_invalid_counts_repaired_bowtie():
+    _, report = validate_dataset(make_dataset(BOWTIE, SQUARE))
+    assert report.invalid == 1
+    assert report.repaired == 1
+
+
+def test_collection_with_empty_part_is_repaired_but_not_invalid():
+    gc = GeometryCollection([SQUARE, Point()])
+    _, report = validate_dataset(make_dataset(gc))
+    assert report.repaired == 1
+    assert report.invalid == 0
+
+
+def test_empty_and_nan_features_are_not_counted_as_invalid():
+    _, report = validate_dataset(make_dataset(Polygon(), Point(float("nan"), 1)))
+    assert report.skipped == 2
+    assert report.invalid == 0
+
+
+def test_collection_with_invalid_part_counts_as_invalid_and_collection():
+    gc = GeometryCollection([BOWTIE, Point(5, 5)])
+    _, report = validate_dataset(make_dataset(gc))
+    assert report.invalid == 1
+    assert report.geometry_collections == 1

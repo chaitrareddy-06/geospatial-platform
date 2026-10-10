@@ -17,15 +17,18 @@ REASON_EMPTY = "empty_geometry"
 REASON_UNKNOWN_TYPE = "unknown_geometry_type"
 REASON_NON_FINITE = "non_finite_coordinates"
 REASON_REPAIR_FAILED = "repair_failed"
-REASON_NO_USABLE_PARTS = "no_usable_parts"
 
 
 @dataclass(frozen=True)
 class ValidationReport:
+    """Counts for one dataset. The metrics layer (Step 12) reads these."""
+
     total: int = 0
     valid: int = 0
     repaired: int = 0
     skipped: int = 0
+    invalid: int = 0  # failed Shapely's validity check (repaired or repair failed)
+    geometry_collections: int = 0  # input features that were GeometryCollections
     skip_reasons: dict[str, int] = field(default_factory=dict)
 
 
@@ -49,25 +52,30 @@ def _clean_collection(geometry: BaseGeometry) -> BaseGeometry | None:
     return type(geometry)(kept)
 
 
-def _validate_feature(feature: Feature) -> tuple[Feature, str | None]:
-    """Return (new_feature, skip_category). skip_category is None if kept."""
+def _validate_feature(feature: Feature) -> tuple[Feature, str | None, bool]:
+    """Return (new_feature, skip_category, was_invalid).
+
+    skip_category is None if the feature is kept.
+    was_invalid is True if the geometry failed Shapely's validity check.
+    """
     geometry = feature.geometry
 
     # Null geometry: parsers already skipped it. Leave as is.
     if geometry is None:
-        return feature, None
+        return feature, None, False
 
     if feature.kind is GeometryKind.UNKNOWN:
         reason = f"Unsupported geometry type: {geometry.geom_type}"
-        return feature.with_skip_reason(reason), REASON_UNKNOWN_TYPE
+        return feature.with_skip_reason(reason), REASON_UNKNOWN_TYPE, False
 
     if geometry.is_empty:
-        return feature.with_skip_reason("Geometry is empty"), REASON_EMPTY
+        return feature.with_skip_reason("Geometry is empty"), REASON_EMPTY, False
 
     if _has_non_finite(geometry):
         return (
             feature.with_skip_reason("Geometry has NaN or infinite coordinates"),
             REASON_NON_FINITE,
+            False,
         )
 
     repaired = False
@@ -76,21 +84,26 @@ def _validate_feature(feature: Feature) -> tuple[Feature, str | None]:
     if feature.kind is GeometryKind.GEOMETRY_COLLECTION:
         cleaned = _clean_collection(geometry)
         if cleaned is None:
+            # Defensive: a non-empty collection always keeps at least one part.
             return (
                 feature.with_skip_reason("Collection has no usable parts"),
-                REASON_NO_USABLE_PARTS,
+                REASON_EMPTY,
+                False,
             )
         if cleaned is not geometry:
             geometry = cleaned
             repaired = True
 
+    was_invalid = False
     if not geometry.is_valid:
+        was_invalid = True
         try:
             fixed = make_valid(geometry)
         except Exception as exc:  # noqa: BLE001 - one bad feature must not stop the file
             return (
                 feature.with_skip_reason(f"Could not repair geometry: {exc}"),
                 REASON_REPAIR_FAILED,
+                was_invalid,
             )
         if fixed.is_empty or not fixed.is_valid:
             return (
@@ -98,30 +111,36 @@ def _validate_feature(feature: Feature) -> tuple[Feature, str | None]:
                     f"Repair produced no usable geometry ({explain_validity(geometry)})"
                 ),
                 REASON_REPAIR_FAILED,
+                was_invalid,
             )
         geometry = fixed
         repaired = True
 
     if repaired:
-        return feature.with_geometry(geometry, repaired=True), None
-    return feature, None
+        return feature.with_geometry(geometry, repaired=True), None, was_invalid
+    return feature, None, was_invalid
 
 
 def validate_dataset(dataset: ParsedDataset) -> tuple[ParsedDataset, ValidationReport]:
     """Validate every feature. Returns a NEW dataset and a report. Never raises per feature."""
     new_features: list[Feature] = []
     reasons: Counter[str] = Counter()
-    valid = repaired = skipped = 0
+    valid = repaired = skipped = invalid = collections = 0
 
     for feature in dataset.features:
         was_skipped = feature.is_skipped
+        if feature.kind is GeometryKind.GEOMETRY_COLLECTION:
+            collections += 1
         try:
-            new_feature, category = _validate_feature(feature)
+            new_feature, category, was_invalid = _validate_feature(feature)
         except Exception as exc:  # noqa: BLE001 - last-resort isolation
             new_feature = feature.with_skip_reason(f"Validation failed: {exc}")
             category = REASON_REPAIR_FAILED
+            was_invalid = False
 
         new_features.append(new_feature)
+        if was_invalid:
+            invalid += 1
 
         if new_feature.is_skipped:
             skipped += 1
@@ -139,6 +158,8 @@ def validate_dataset(dataset: ParsedDataset) -> tuple[ParsedDataset, ValidationR
         valid=valid,
         repaired=repaired,
         skipped=skipped,
+        invalid=invalid,
+        geometry_collections=collections,
         skip_reasons=dict(reasons),
     )
     return replace(dataset, features=tuple(new_features)), report
