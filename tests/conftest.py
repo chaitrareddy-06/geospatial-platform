@@ -2,6 +2,7 @@
 
 import io
 import itertools
+import warnings
 import zipfile
 
 import geopandas as gpd
@@ -57,7 +58,11 @@ def shapefile_zip(tmp_path):
             geometry=[box(78.40, 17.40, 78.41, 17.41), box(78.42, 17.40, 78.43, 17.41)],
             crs=crs,
         )
-        frame.to_file(folder / "layer.shp", driver="ESRI Shapefile")
+        with warnings.catch_warnings():
+            # Writing a Shapefile without a CRS is the whole point of crs=None,
+            # so the library's "'crs' was not provided" warning is expected here.
+            warnings.filterwarnings("ignore", message="'crs' was not provided")
+            frame.to_file(folder / "layer.shp", driver="ESRI Shapefile")
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(folder.iterdir()):
