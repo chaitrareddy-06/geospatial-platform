@@ -1,6 +1,7 @@
 """Projection strategy: UTM for local data, equal-area for wide or polar data.
 
 Pure functions, no framework imports. Input geometries must be lon/lat degrees.
+The UTM threshold is passed in by the caller; this module never reads settings.
 """
 
 from __future__ import annotations
@@ -33,10 +34,12 @@ REASON_TOO_WIDE = "extent_exceeds_utm_zone"
 REASON_NO_USABLE = "no_usable_geometries"
 REASON_NOT_LONLAT = "coordinates_not_lonlat"
 
-# How far (degrees of longitude) any part of the data may be from the UTM
-# zone's centre line. Roughly 4 deg gives ~0.4 percent area scale error at the
-# equator. This is a tunable choice; Step 9's geodesic check measures it.
+# Default for how far (degrees of longitude) any part of the data may be from
+# the UTM zone's centre line. Roughly 4 deg gives ~0.4 percent area scale error
+# at the equator. Tunable via Settings; Step 9's geodesic check measures it.
 MAX_UTM_OFFSET_DEG = 4.0
+# Upper limit accepted for the threshold (my reasoned cap, not a standard).
+MAX_ALLOWED_OFFSET_DEG = 10.0
 
 
 @dataclass(frozen=True)
@@ -90,8 +93,37 @@ def _laea_for(center_lon: float, center_lat: float) -> tuple[CRS, str]:
     return crs, f"LAEA(lat_0={lat:.2f},lon_0={lon:.2f})"
 
 
-def choose_projection(geometries: Iterable[BaseGeometry | None]) -> ProjectionChoice:
-    """Choose a projected CRS to measure lon/lat geometries in."""
+def _laea_choice(
+    center_lon: float, center_lat: float, span: float, reason: str
+) -> ProjectionChoice:
+    crs, label = _laea_for(center_lon, center_lat)
+    return ProjectionChoice(
+        crs=crs,
+        label=label,
+        strategy=STRATEGY_LAEA,
+        reason=reason,
+        preserves="area",
+        center_lon=center_lon,
+        center_lat=center_lat,
+        lon_span_deg=span,
+    )
+
+
+def choose_projection(
+    geometries: Iterable[BaseGeometry | None],
+    max_utm_offset_deg: float = MAX_UTM_OFFSET_DEG,
+) -> ProjectionChoice:
+    """Choose a projected CRS to measure lon/lat geometries in.
+
+    max_utm_offset_deg: how far (degrees of longitude) the data may be from the
+    UTM zone's centre line before falling back to equal-area.
+    """
+    if not (0 < max_utm_offset_deg <= MAX_ALLOWED_OFFSET_DEG):
+        raise ValueError(
+            f"max_utm_offset_deg must be > 0 and <= {MAX_ALLOWED_OFFSET_DEG}, "
+            f"got {max_utm_offset_deg}"
+        )
+
     usable = [g for g in geometries if g is not None and not g.is_empty]
     if not usable:
         raise CRSResolutionError(
@@ -124,7 +156,7 @@ def choose_projection(geometries: Iterable[BaseGeometry | None]) -> ProjectionCh
         zone = utm_zone_for(center_lon, center_lat)
         edges = (center_lon - span / 2.0, center_lon + span / 2.0)
         offset = max(abs(_wrap_lon(e - zone.central_longitude)) for e in edges)
-        if offset <= MAX_UTM_OFFSET_DEG:
+        if offset <= max_utm_offset_deg:
             choice = ProjectionChoice(
                 crs=zone.crs,
                 label=zone.label,
@@ -148,19 +180,3 @@ def choose_projection(geometries: Iterable[BaseGeometry | None]) -> ProjectionCh
         },
     )
     return choice
-
-
-def _laea_choice(
-    center_lon: float, center_lat: float, span: float, reason: str
-) -> ProjectionChoice:
-    crs, label = _laea_for(center_lon, center_lat)
-    return ProjectionChoice(
-        crs=crs,
-        label=label,
-        strategy=STRATEGY_LAEA,
-        reason=reason,
-        preserves="area",
-        center_lon=center_lon,
-        center_lat=center_lat,
-        lon_span_deg=span,
-    )
