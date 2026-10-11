@@ -28,3 +28,7 @@ class FileRepository(Protocol):
     def find_completed_by_sha256(self, sha256: str) -> FileRecord | None:
         """Return a COMPLETED record with this content hash, if any."""
         ...
+
+    def list_unfinished(self) -> list[FileRecord]:
+        """Return every record that is still QUEUED or PROCESSING."""
+        ...

@@ -19,6 +19,9 @@ Failure behaviour
   no features.
 * run_job only works on QUEUED records, so running the same job twice (a
   retry, a duplicated queue message) does nothing the second time.
+* A job that never finishes (server restarted, worker lost) would stay QUEUED
+  or PROCESSING forever. ``fail_stale_jobs`` marks such records FAILED with
+  the code ``job_timed_out`` once they are older than a limit.
 """
 
 from __future__ import annotations
@@ -50,7 +53,10 @@ from app.services.shapefile_parser import parse_shapefile_zip
 logger = logging.getLogger(__name__)
 
 ERROR_INTERNAL = "internal_error"
+ERROR_JOB_TIMED_OUT = "job_timed_out"
 REASON_NO_DATASETS = "no_datasets"
+REASON_STALE_QUEUED = "stale_queued"
+REASON_STALE_PROCESSING = "stale_processing"
 MULTIPLE_CRS = "multiple"
 
 
@@ -152,6 +158,58 @@ class FileService:
         """Submit and process in one call (synchronous). Returns the final record."""
         record = self.submit(filename, content)
         return self.run_job(record.id, content)
+
+    # ------------------------------------------------------------------
+    # Housekeeping
+
+    def fail_stale_jobs(
+        self, *, max_age_seconds: float, now: datetime | None = None
+    ) -> int:
+        """Mark QUEUED/PROCESSING records older than the limit as FAILED.
+
+        Age is measured from ``created_at`` (the upload time). ``now`` can be
+        passed in so tests do not have to wait. Returns how many records were
+        failed. Finished records are never touched.
+        """
+        if max_age_seconds <= 0:
+            raise ValueError("max_age_seconds must be greater than 0")
+
+        current = now or _now()
+        failed_count = 0
+        for record in self._repository.list_unfinished():
+            age_seconds = (current - record.created_at).total_seconds()
+            if age_seconds < max_age_seconds:
+                continue
+
+            if record.status is JobStatus.QUEUED:
+                reason = REASON_STALE_QUEUED
+                message = "The job was never started and was marked as failed."
+            else:
+                reason = REASON_STALE_PROCESSING
+                message = "The job did not finish in time and was marked as failed."
+
+            failed = replace(
+                record,
+                status=JobStatus.FAILED,
+                completed_at=current,
+                error_code=ERROR_JOB_TIMED_OUT,
+                error_reason=reason,
+                error_message=message,
+            )
+            try:
+                self._repository.update(failed)
+            except KeyError:
+                continue  # removed while we were looking; nothing to fail
+            logger.warning(
+                "stale_job_failed",
+                extra={
+                    "file_id": record.id,
+                    "reason": reason,
+                    "age_seconds": round(age_seconds, 1),
+                },
+            )
+            failed_count += 1
+        return failed_count
 
     # ------------------------------------------------------------------
     # Reading

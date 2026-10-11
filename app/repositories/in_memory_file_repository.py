@@ -5,6 +5,8 @@ import threading
 from app.domain.entities.file_record import FileRecord
 from app.domain.enums.job_status import JobStatus
 
+_UNFINISHED = (JobStatus.QUEUED, JobStatus.PROCESSING)
+
 
 class InMemoryFileRepository:
     """Dictionary-backed store. Data is lost on restart (fine until Step 3).
@@ -37,3 +39,7 @@ class InMemoryFileRepository:
                 if record.sha256 == sha256 and record.status is JobStatus.COMPLETED:
                     return record
         return None
+
+    def list_unfinished(self) -> list[FileRecord]:
+        with self._lock:
+            return [r for r in self._records.values() if r.status in _UNFINISHED]
