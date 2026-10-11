@@ -5,6 +5,8 @@ from __future__ import annotations
 from functools import lru_cache
 
 from app.core.config import settings
+from app.infrastructure.metrics.observer import MetricsObserver
+from app.infrastructure.metrics.registry import get_metrics
 from app.repositories.in_memory_feature_result_repository import (
     InMemoryFeatureResultRepository,
 )
@@ -34,6 +36,7 @@ def get_file_service() -> FileService:
         assume_wgs84_if_missing=settings.assume_wgs84_if_missing_crs,
         max_utm_offset_deg=settings.max_utm_offset_degrees,
         max_upload_size_bytes=settings.max_upload_size_bytes,
+        observer=MetricsObserver(get_metrics()),
     )
 
 
