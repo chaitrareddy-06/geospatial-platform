@@ -11,6 +11,7 @@ from app.repositories.in_memory_feature_result_repository import (
 from app.repositories.in_memory_file_repository import InMemoryFileRepository
 from app.services.file_service import FileService
 from app.workers.job_runner import JobRunner, ThreadPoolJobRunner
+from app.workers.stale_job_sweeper import StaleJobSweeper
 
 
 @lru_cache
@@ -42,8 +43,25 @@ def get_job_runner() -> JobRunner:
     return ThreadPoolJobRunner(get_file_service(), max_workers=settings.job_workers)
 
 
+@lru_cache
+def get_stale_job_sweeper() -> StaleJobSweeper:
+    """One sweeper for the whole process (started and stopped by the app lifespan)."""
+    return StaleJobSweeper(
+        get_file_service(),
+        max_age_seconds=settings.job_timeout_seconds,
+        interval_seconds=settings.stale_sweep_interval_seconds,
+    )
+
+
 def shutdown_job_runner() -> None:
     """Stop the runner (waiting for running jobs) if one was ever created."""
     if get_job_runner.cache_info().currsize > 0:
         get_job_runner().shutdown(wait=True)
         get_job_runner.cache_clear()
+
+
+def shutdown_stale_job_sweeper() -> None:
+    """Stop the sweeper if one was ever created."""
+    if get_stale_job_sweeper.cache_info().currsize > 0:
+        get_stale_job_sweeper().stop()
+        get_stale_job_sweeper.cache_clear()

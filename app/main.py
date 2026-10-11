@@ -5,7 +5,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from app.api.dependencies import shutdown_job_runner
+from app.api.dependencies import (
+    get_stale_job_sweeper,
+    shutdown_job_runner,
+    shutdown_stale_job_sweeper,
+)
 from app.api.error_handlers import register_exception_handlers
 from app.api.v1 import files, health
 from app.core.config import settings
@@ -16,9 +20,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    yield
-    # On shutdown, let running jobs finish instead of cutting them off.
-    shutdown_job_runner()
+    # Start the sweeper that fails jobs which never finish.
+    get_stale_job_sweeper().start()
+    try:
+        yield
+    finally:
+        # Stop the sweeper first, then let running jobs finish instead of
+        # cutting them off.
+        shutdown_stale_job_sweeper()
+        shutdown_job_runner()
 
 
 def create_app() -> FastAPI:

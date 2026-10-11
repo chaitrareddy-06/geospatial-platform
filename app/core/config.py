@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     # start hundreds of threads on a small machine.
     job_workers: int = Field(default=2, ge=1, le=16)
 
+    # A job still QUEUED or PROCESSING this many seconds after upload is marked
+    # FAILED ("job_timed_out"). The default is a guess until the benchmarks
+    # (Step 13) show how long the biggest files really take.
+    job_timeout_seconds: float = Field(default=900.0, gt=0)
+
+    # How often the background sweeper looks for such jobs.
+    stale_sweep_interval_seconds: float = Field(default=60.0, gt=0)
+
 
 @lru_cache
 def get_settings() -> Settings:
