@@ -1,15 +1,24 @@
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
+from app.api.dependencies import shutdown_job_runner
 from app.api.error_handlers import register_exception_handlers
 from app.api.v1 import files, health
 from app.core.config import settings
 from app.core.logging_config import configure_logging, request_id_ctx
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    yield
+    # On shutdown, let running jobs finish instead of cutting them off.
+    shutdown_job_runner()
 
 
 def create_app() -> FastAPI:
@@ -25,6 +34,7 @@ def create_app() -> FastAPI:
             "computed in an appropriate projected CRS."
         ),
         debug=settings.debug,
+        lifespan=lifespan,
     )
 
     register_exception_handlers(app)

@@ -5,13 +5,15 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from starlette.concurrency import run_in_threadpool
 
-from app.api.dependencies import get_file_service
+from app.api.dependencies import get_file_service, get_job_runner
 from app.api.schemas import FileOut, MeasurementPageOut
 from app.services.file_service import FileService
+from app.workers.job_runner import JobRunner
 
 router = APIRouter(tags=["files"])
 
 ServiceDep = Annotated[FileService, Depends(get_file_service)]
+RunnerDep = Annotated[JobRunner, Depends(get_job_runner)]
 
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 1000
@@ -20,19 +22,21 @@ MAX_PAGE_SIZE = 1000
 @router.post(
     "/files/",
     response_model=FileOut,
-    status_code=status.HTTP_201_CREATED,
-    summary="Upload a KML or zipped Shapefile and process it",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload a KML or zipped Shapefile (processed in the background)",
 )
 async def upload_file(
     service: ServiceDep,
+    runner: RunnerDep,
     file: Annotated[UploadFile, File(description="A .kml file or a .zip Shapefile")],
 ) -> FileOut:
     # Read one byte past the limit so an oversized upload is detected without
     # loading all of it into memory.
     content = await file.read(service.max_upload_size_bytes + 1)
-    # Processing is CPU-bound and synchronous, so it runs in a worker thread
-    # to keep the event loop free (until Step 11 moves it to a job queue).
-    record = await run_in_threadpool(service.ingest, file.filename or "", content)
+    # submit() is fast: it validates, checks for duplicates and stores a QUEUED
+    # record. The slow work happens later in the job runner.
+    record = await run_in_threadpool(service.submit, file.filename or "", content)
+    runner.submit(record.id, content)
     return FileOut.from_record(record)
 
 

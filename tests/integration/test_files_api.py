@@ -8,15 +8,39 @@ from app.core.exceptions import (
 )
 
 
+class NoopRunner:
+    """A runner that never runs the job, so the file stays QUEUED."""
+
+    def submit(self, file_id: str, content: bytes) -> None:
+        return None
+
+    def shutdown(self, wait: bool = True) -> None:
+        return None
+
+
 def _upload(client, name, content, url="/api/v1/files/"):
     return client.post(url, files={"file": (name, content, "application/octet-stream")})
 
 
-def test_upload_kml_returns_completed_record(client, kml_bytes):
+def _upload_and_fetch(client, name, content):
+    """Upload (expects 202), then read the record back after the job has run."""
+    created = _upload(client, name, content)
+    assert created.status_code == 202
+    return client.get(f"/api/v1/files/{created.json()['id']}/").json()
+
+
+def test_upload_returns_202_and_a_queued_record(client, kml_bytes):
     response = _upload(client, "survey.kml", kml_bytes)
-    assert response.status_code == 201
+    assert response.status_code == 202
     body = response.json()
     assert body["id"]
+    assert body["filename"] == "survey.kml"
+    assert body["status"] == "QUEUED"
+    assert body["error"] is None
+
+
+def test_upload_kml_completes_in_the_background(client, kml_bytes):
+    body = _upload_and_fetch(client, "survey.kml", kml_bytes)
     assert body["filename"] == "survey.kml"
     assert body["feature_count"] == 3
     assert body["crs"] == "EPSG:4326"
@@ -24,10 +48,30 @@ def test_upload_kml_returns_completed_record(client, kml_bytes):
     assert body["error"] is None
 
 
+def test_file_stays_queued_until_a_worker_runs_it(make_client, make_service, kml_bytes):
+    client = make_client(make_service(), runner=NoopRunner())
+    created = _upload(client, "survey.kml", kml_bytes).json()
+    fetched = client.get(f"/api/v1/files/{created['id']}/").json()
+    assert fetched["status"] == "QUEUED"
+    assert fetched["feature_count"] == 0
+
+
+def test_measurements_of_a_queued_file_are_empty_with_its_status(
+    make_client, make_service, kml_bytes
+):
+    client = make_client(make_service(), runner=NoopRunner())
+    created = _upload(client, "survey.kml", kml_bytes).json()
+    page = client.get(f"/api/v1/files/{created['id']}/measurements/").json()
+    assert page["file_status"] == "QUEUED"
+    assert page["total"] == 0
+    assert page["items"] == []
+
+
 def test_upload_via_assignment_alias_path(client, kml_bytes):
     response = _upload(client, "survey.kml", kml_bytes, url="/api/files/")
-    assert response.status_code == 201
-    assert response.json()["status"] == "COMPLETED"
+    assert response.status_code == 202
+    fetched = client.get(f"/api/files/{response.json()['id']}/").json()
+    assert fetched["status"] == "COMPLETED"
 
 
 def test_get_record_by_id(client, kml_bytes):
@@ -84,24 +128,20 @@ def test_missing_file_field_returns_422(client):
 
 
 def test_upload_zipped_shapefile(client, shapefile_zip):
-    response = _upload(client, "parcels.zip", shapefile_zip())
-    assert response.status_code == 201
-    body = response.json()
+    body = _upload_and_fetch(client, "parcels.zip", shapefile_zip())
     assert body["status"] == "COMPLETED"
     assert body["feature_count"] == 2
 
 
 def test_missing_crs_is_reported_as_failed_record(client, shapefile_zip):
-    response = _upload(client, "parcels.zip", shapefile_zip(None))
-    assert response.status_code == 201
-    body = response.json()
+    body = _upload_and_fetch(client, "parcels.zip", shapefile_zip(None))
     assert body["status"] == "FAILED"
     assert body["error"]["code"] == CRSResolutionError.error_code
     assert body["error"]["reason"] == "missing_crs"
 
 
 def test_layer_details_are_returned(client, kml_bytes):
-    body = _upload(client, "survey.kml", kml_bytes).json()
+    body = _upload_and_fetch(client, "survey.kml", kml_bytes)
     assert len(body["layers"]) == 1
     layer = body["layers"][0]
     assert layer["crs_strategy"] == "utm"

@@ -7,7 +7,7 @@ def _upload_kml(client, kml_bytes) -> str:
     response = client.post(
         "/api/v1/files/", files={"file": ("survey.kml", kml_bytes, KML_TYPE)}
     )
-    assert response.status_code == 201
+    assert response.status_code == 202
     return response.json()["id"]
 
 
@@ -98,9 +98,10 @@ def test_failed_file_gives_an_empty_page_with_its_status(client, shapefile_zip):
         "/api/v1/files/",
         files={"file": ("nocrs.zip", shapefile_zip(crs=None), "application/zip")},
     )
+    assert response.status_code == 202
     file_id = response.json()["id"]
-    assert response.json()["status"] == "FAILED"
 
+    assert client.get(f"/api/v1/files/{file_id}/").json()["status"] == "FAILED"
     page = client.get(f"/api/v1/files/{file_id}/measurements/").json()
     assert page["file_status"] == "FAILED"
     assert page["total"] == 0
