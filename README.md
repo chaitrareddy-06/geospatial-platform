@@ -71,7 +71,7 @@ Run the tests:
 pytest -q
 ```
 
-The benchmark scripts also need `psutil` (`pip install psutil`).
+The benchmark scripts use `psutil`, which is included in `requirements.txt`.
 
 ## API
 
