@@ -1,19 +1,24 @@
-"""The upload flow: validate, detect duplicates, parse, process, store.
+"""The upload flow: validate, detect duplicates, queue, parse, process, store.
 
 This service knows nothing about HTTP. The API reads the bytes and calls
-``ingest``; settings are read by the caller and passed to the constructor.
+``submit`` (fast: record is QUEUED) and a job runner later calls ``run_job``
+(slow: parse and measure). ``ingest`` does both in one go and is kept for
+synchronous use and tests. Settings are read by the caller and passed to the
+constructor.
 
 Failure behaviour
 -----------------
 * Cheap upload checks (empty, wrong type, too large) raise right away and
   nothing is stored.
 * A content-hash match with a COMPLETED upload raises DuplicateFileError.
-* After that point every failure is recorded: the record ends up FAILED with
-  an error code, so the outcome can be looked up later. Unexpected crashes are
+* After submit, every failure is recorded: the record ends up FAILED with an
+  error code, so the outcome can be looked up later. Unexpected crashes are
   logged in full but only a generic message is stored.
 * Per-feature results are stored BEFORE the record is marked COMPLETED, so a
   reader never sees a COMPLETED file without its features. FAILED files store
   no features.
+* run_job only works on QUEUED records, so running the same job twice (a
+  retry, a duplicated queue message) does nothing the second time.
 """
 
 from __future__ import annotations
@@ -82,8 +87,11 @@ class FileService:
         self._max_utm_offset_deg = max_utm_offset_deg
         self.max_upload_size_bytes = max_upload_size_bytes
 
-    def ingest(self, filename: str, content: bytes) -> FileRecord:
-        """Validate, process and store one upload. Returns the final record."""
+    # ------------------------------------------------------------------
+    # Accepting an upload (fast)
+
+    def submit(self, filename: str, content: bytes) -> FileRecord:
+        """Validate the upload and store a QUEUED record. Does no processing."""
         upload = validate_upload(
             filename, content, max_size_bytes=self.max_upload_size_bytes
         )
@@ -104,16 +112,49 @@ class FileService:
             kind=upload.kind,
             size_bytes=upload.size_bytes,
             sha256=upload.sha256,
-            status=JobStatus.PROCESSING,
+            status=JobStatus.QUEUED,
             created_at=_now(),
         )
         self._repository.add(record)
+        logger.info(
+            "file_queued",
+            extra={"file_id": record.id, "size_bytes": record.size_bytes},
+        )
+        return record
+
+    # ------------------------------------------------------------------
+    # Processing a queued upload (slow)
+
+    def run_job(self, file_id: str, content: bytes) -> FileRecord:
+        """Process a QUEUED record and return its final record.
+
+        Raises ResourceNotFoundError for an unknown id. A record that is not
+        QUEUED is returned unchanged (safe to call twice).
+        """
+        record = self.get(file_id)
+        if record.status is not JobStatus.QUEUED:
+            logger.info(
+                "job_skipped_not_queued",
+                extra={"file_id": file_id, "status": record.status.value},
+            )
+            return record
+
+        processing = replace(record, status=JobStatus.PROCESSING)
+        self._repository.update(processing)
 
         token = job_id_ctx.set(record.id)
         try:
-            return self._run(record, content)
+            return self._run(processing, content)
         finally:
             job_id_ctx.reset(token)
+
+    def ingest(self, filename: str, content: bytes) -> FileRecord:
+        """Submit and process in one call (synchronous). Returns the final record."""
+        record = self.submit(filename, content)
+        return self.run_job(record.id, content)
+
+    # ------------------------------------------------------------------
+    # Reading
 
     def get(self, file_id: str) -> FileRecord:
         record = self._repository.get(file_id)
