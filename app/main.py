@@ -11,7 +11,7 @@ from app.api.dependencies import (
     shutdown_stale_job_sweeper,
 )
 from app.api.error_handlers import register_exception_handlers
-from app.api.v1 import files, health
+from app.api.v1 import files, health, metrics
 from app.core.config import settings
 from app.core.logging_config import configure_logging, request_id_ctx
 
@@ -64,9 +64,12 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router, prefix=settings.api_v1_prefix)
     app.include_router(files.router, prefix=settings.api_v1_prefix)
+    app.include_router(metrics.router, prefix=settings.api_v1_prefix)
     # The assignment's exact paths (/api/files/...) are aliases of the v1 routes.
     # Same router, mounted twice, hidden from the docs so there is one source of truth.
     app.include_router(files.router, prefix="/api", include_in_schema=False)
+    # Prometheus scrapes plain /metrics by convention; same router, hidden alias.
+    app.include_router(metrics.router, include_in_schema=False)
 
     return app
 
