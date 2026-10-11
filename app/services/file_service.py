@@ -11,6 +11,9 @@ Failure behaviour
 * After that point every failure is recorded: the record ends up FAILED with
   an error code, so the outcome can be looked up later. Unexpected crashes are
   logged in full but only a generic message is stored.
+* Per-feature results are stored BEFORE the record is marked COMPLETED, so a
+  reader never sees a COMPLETED file without its features. FAILED files store
+  no features.
 """
 
 from __future__ import annotations
@@ -28,9 +31,11 @@ from app.core.exceptions import (
     ResourceNotFoundError,
 )
 from app.core.logging_config import job_id_ctx
+from app.domain.entities.feature_page import FeaturePage
 from app.domain.entities.file_record import FileRecord, LayerSummary
 from app.domain.enums.file_kind import FileKind
 from app.domain.enums.job_status import JobStatus
+from app.repositories.feature_result_repository import FeatureResultRepository
 from app.repositories.file_repository import FileRepository
 from app.services.dataset_processing import DatasetResult, process_dataset
 from app.services.file_validation import validate_upload
@@ -69,8 +74,10 @@ class FileService:
         assume_wgs84_if_missing: bool,
         max_utm_offset_deg: float,
         max_upload_size_bytes: int,
+        feature_repository: FeatureResultRepository | None = None,
     ) -> None:
         self._repository = repository
+        self._features = feature_repository
         self._assume_wgs84_if_missing = assume_wgs84_if_missing
         self._max_utm_offset_deg = max_utm_offset_deg
         self.max_upload_size_bytes = max_upload_size_bytes
@@ -114,12 +121,40 @@ class FileService:
             raise ResourceNotFoundError("File not found.", details={"id": file_id})
         return record
 
+    def list_measurements(
+        self,
+        file_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 100,
+        status: str | None = None,
+    ) -> tuple[FileRecord, FeaturePage]:
+        """Return the file record and one page of its per-feature results.
+
+        Raises ResourceNotFoundError for an unknown id. A file that is not
+        COMPLETED simply has an empty page; the record's status says why.
+        """
+        record = self.get(file_id)
+        if self._features is None:
+            return record, FeaturePage(items=(), total=0, offset=offset, limit=limit)
+        page = self._features.list_page(
+            file_id, offset=offset, limit=limit, status=status
+        )
+        return record, page
+
     # ------------------------------------------------------------------
+
+    def _store_features(self, file_id: str, results: list[DatasetResult]) -> None:
+        if self._features is None:
+            return
+        for result in results:
+            self._features.add_layer(file_id, result.source_name, result.features)
 
     def _run(self, record: FileRecord, content: bytes) -> FileRecord:
         started = time.perf_counter()
         try:
             results = self._process(record.kind, content, record.filename)
+            self._store_features(record.id, results)
         except AppError as exc:
             details = exc.details or {}
             finished = replace(
