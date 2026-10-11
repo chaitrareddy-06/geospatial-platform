@@ -33,11 +33,9 @@ from pyproj.exceptions import ProjError
 from app.core.exceptions import CRSResolutionError
 from app.domain.entities.dataset import ParsedDataset
 from app.domain.entities.feature import Feature
+from app.domain.entities.feature_result import ProcessedFeature
 from app.domain.enums.file_kind import FileKind
-from app.domain.enums.geometry_kind import GeometryKind
 from app.services.geodesic import (
-    CrossCheck,
-    LengthMethod,
     build_lonlat_transformer,
     measure_feature_checked,
 )
@@ -46,29 +44,13 @@ from app.services.geometry_validation import (
     ValidationReport,
     validate_dataset,
 )
-from app.services.measurement import FeatureMeasurement, Measurement, build_transformer
+from app.services.measurement import FeatureMeasurement, build_transformer
 from app.services.projection_strategy import MAX_UTM_OFFSET_DEG
 from app.services.target_crs import TargetCRS, resolve_target_crs
 
 logger = logging.getLogger(__name__)
 
 REASON_TRANSFORMER_FAILED = "reprojection_failed"
-
-
-@dataclass(frozen=True)
-class ProcessedFeature:
-    """One feature's outcome: what it was, what happened, what was measured."""
-
-    index: int
-    kind: GeometryKind
-    status: str  # "measured" | "skipped" | "failed"
-    reason: str | None  # human-readable sentence
-    reason_code: str | None  # stable machine code; None when measured
-    repaired: bool
-    properties: dict[str, Any]
-    measurement: Measurement | None
-    cross_check: CrossCheck | None
-    length_method: LengthMethod | None
 
 
 @dataclass(frozen=True)

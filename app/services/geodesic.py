@@ -18,7 +18,7 @@ This module is pure: no HTTP, no settings, no database, no Prometheus.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import shapely
@@ -26,6 +26,7 @@ from pyproj import Geod
 from shapely.geometry.base import BaseGeometry
 
 from app.domain.entities.feature import Feature
+from app.domain.entities.feature_result import CrossCheck, LengthMethod
 from app.services.measurement import FeatureMeasurement, measure_feature
 from app.services.target_crs import TargetCRS
 
@@ -42,23 +43,6 @@ class GeodesicResult:
 
     area_m2: float
     length_m: float
-
-
-@dataclass(frozen=True)
-class CrossCheck:
-    """Projected vs geodesic comparison for one feature.
-
-    ``*_diff_pct`` = (projected - geodesic) / geodesic * 100.
-    A value is None when the feature has no such quantity.
-    """
-
-    geodesic_area_m2: float | None
-    geodesic_length_m: float | None
-    area_diff_pct: float | None
-    length_diff_pct: float | None
-
-
-LengthMethod = Literal["projected", "geodesic"]
 
 
 @dataclass(frozen=True)

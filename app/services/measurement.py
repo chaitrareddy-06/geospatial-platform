@@ -17,6 +17,7 @@ from shapely.geometry.base import BaseGeometry
 
 from app.core.exceptions import CRSResolutionError, GeometryProcessingError
 from app.domain.entities.feature import Feature
+from app.domain.entities.feature_result import Measurement
 from app.domain.enums.geometry_kind import GeometryKind
 from app.services.target_crs import REASON_REPROJECTION_FAILED, TargetCRS
 
@@ -37,15 +38,6 @@ _MULTI_KINDS = {
     GeometryKind.MULTI_POLYGON,
     GeometryKind.GEOMETRY_COLLECTION,
 }
-
-
-@dataclass(frozen=True)
-class Measurement:
-    kind: GeometryKind
-    area_m2: float | None = None
-    length_m: float | None = None
-    part_count: int | None = None  # for Multi* and collections
-    unsupported_parts: tuple[str, ...] = ()  # geometry types we could not measure
 
 
 @dataclass(frozen=True)
