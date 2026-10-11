@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFi
 from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import get_file_service, get_job_runner
+from app.api.metrics_route import MetricsRoute
 from app.api.schemas import FileOut, MeasurementPageOut
 from app.services.file_service import FileService
 from app.workers.job_runner import JobRunner
 
-router = APIRouter(tags=["files"])
+router = APIRouter(tags=["files"], route_class=MetricsRoute)
 
 ServiceDep = Annotated[FileService, Depends(get_file_service)]
 RunnerDep = Annotated[JobRunner, Depends(get_job_runner)]

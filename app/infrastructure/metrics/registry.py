@@ -2,7 +2,7 @@
 
 The Metrics class takes plain numbers (counts, durations), never service or
 domain objects, so the pure services stay free of ``prometheus_client``. A small
-adapter (added in Part 2) reads the result objects and calls these methods.
+adapter (``observer.py``) reads the result objects and calls these methods.
 
 Every Metrics instance owns its own registry. Tests create their own instance
 and cannot disturb each other; the app uses the single shared one from
@@ -28,8 +28,10 @@ UPLOAD_SIZE_BUCKETS = (
     1_000, 10_000, 100_000, 1_000_000, 5_000_000, 10_000_000, 50_000_000, 100_000_000,
 )
 DURATION_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300)
+API_LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10)
 
 UNKNOWN_REASON = "unknown"
+ERROR_STATUS_FROM = 400
 
 _FAMILIES = {
     "polygon": "polygon",
@@ -181,6 +183,27 @@ class Metrics:
             "queue_size", "Jobs waiting for a worker.", registry=reg
         )
 
+        # HTTP API (fed by the request middleware)
+        self.api_requests = Counter(
+            "api_request_total",
+            "HTTP requests, by method, route template and status code.",
+            ["method", "path", "status"],
+            registry=reg,
+        )
+        self.api_errors = Counter(
+            "api_error_total",
+            "HTTP responses with status 400 or higher.",
+            ["method", "path", "status"],
+            registry=reg,
+        )
+        self.api_request_duration = Histogram(
+            "api_request_duration_seconds",
+            "Time to answer one HTTP request.",
+            ["method", "path"],
+            buckets=API_LATENCY_BUCKETS,
+            registry=reg,
+        )
+
         self._largest = 0
         self._lock = threading.Lock()
 
@@ -261,6 +284,23 @@ class Metrics:
     def set_workload(self, *, queued: int, active: int) -> None:
         self.queue_size.set(queued)
         self.active_jobs.set(active)
+
+    def record_request(
+        self,
+        *,
+        method: str,
+        path: str,
+        status_code: int,
+        duration_seconds: float,
+    ) -> None:
+        """One HTTP request. ``path`` must be a route template, not a raw URL."""
+        status = str(status_code)
+        self.api_requests.labels(method=method, path=path, status=status).inc()
+        self.api_request_duration.labels(method=method, path=path).observe(
+            duration_seconds
+        )
+        if status_code >= ERROR_STATUS_FROM:
+            self.api_errors.labels(method=method, path=path, status=status).inc()
 
     # ------------------------------------------------------------------
 

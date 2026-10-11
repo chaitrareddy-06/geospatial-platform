@@ -8,12 +8,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response
 
 from app.api.dependencies import get_job_runner
+from app.api.metrics_route import MetricsRoute
 from app.infrastructure.metrics.registry import get_metrics
 from app.workers.job_runner import JobRunner
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["ops"])
+router = APIRouter(tags=["ops"], route_class=MetricsRoute)
 
 RunnerDep = Annotated[JobRunner, Depends(get_job_runner)]
 

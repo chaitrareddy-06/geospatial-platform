@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
+from app.api.metrics_route import MetricsRoute
 from app.core.config import settings
 
-router = APIRouter(tags=["Operations"])
+router = APIRouter(tags=["Operations"], route_class=MetricsRoute)
 
 
 @router.get("/health", summary="Liveness check")

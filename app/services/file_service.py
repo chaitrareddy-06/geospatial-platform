@@ -22,6 +22,13 @@ Failure behaviour
 * A job that never finishes (server restarted, worker lost) would stay QUEUED
   or PROCESSING forever. ``fail_stale_jobs`` marks such records FAILED with
   the code ``job_timed_out`` once they are older than a limit.
+
+Observer
+--------
+An optional ``ProcessingObserver`` is told about accepted uploads, processed
+datasets and finished jobs (this is how metrics are collected without this
+module importing any metrics library). An observer that raises is logged and
+ignored: observing must never break processing.
 """
 
 from __future__ import annotations
@@ -31,6 +38,7 @@ import time
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import Any
 
 from app.core.exceptions import (
     AppError,
@@ -48,6 +56,7 @@ from app.repositories.file_repository import FileRepository
 from app.services.dataset_processing import DatasetResult, process_dataset
 from app.services.file_validation import validate_upload
 from app.services.kml_parser import parse_kml
+from app.services.processing_observer import ProcessingObserver
 from app.services.shapefile_parser import parse_shapefile_zip
 
 logger = logging.getLogger(__name__)
@@ -86,9 +95,11 @@ class FileService:
         max_utm_offset_deg: float,
         max_upload_size_bytes: int,
         feature_repository: FeatureResultRepository | None = None,
+        observer: ProcessingObserver | None = None,
     ) -> None:
         self._repository = repository
         self._features = feature_repository
+        self._observer = observer
         self._assume_wgs84_if_missing = assume_wgs84_if_missing
         self._max_utm_offset_deg = max_utm_offset_deg
         self.max_upload_size_bytes = max_upload_size_bytes
@@ -126,6 +137,7 @@ class FileService:
             "file_queued",
             extra={"file_id": record.id, "size_bytes": record.size_bytes},
         )
+        self._notify("upload_accepted", record)
         return record
 
     # ------------------------------------------------------------------
@@ -208,6 +220,7 @@ class FileService:
                     "age_seconds": round(age_seconds, 1),
                 },
             )
+            self._notify("job_finished", failed)
             failed_count += 1
         return failed_count
 
@@ -243,6 +256,15 @@ class FileService:
 
     # ------------------------------------------------------------------
 
+    def _notify(self, event: str, *args: Any) -> None:
+        """Tell the observer (if any). Never lets an observer error escape."""
+        if self._observer is None:
+            return
+        try:
+            getattr(self._observer, event)(*args)
+        except Exception:  # noqa: BLE001 - observing must never break processing
+            logger.exception("observer_failed", extra={"event_name": event})
+
     def _store_features(self, file_id: str, results: list[DatasetResult]) -> None:
         if self._features is None:
             return
@@ -251,6 +273,7 @@ class FileService:
 
     def _run(self, record: FileRecord, content: bytes) -> FileRecord:
         started = time.perf_counter()
+        results: list[DatasetResult] = []
         try:
             results = self._process(record.kind, content, record.filename)
             self._store_features(record.id, results)
@@ -306,6 +329,11 @@ class FileService:
             )
 
         self._repository.update(finished)
+
+        if finished.status is JobStatus.COMPLETED:
+            for result in results:
+                self._notify("dataset_processed", result)
+        self._notify("job_finished", finished)
         return finished
 
     def _process(

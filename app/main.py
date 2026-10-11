@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -11,11 +12,14 @@ from app.api.dependencies import (
     shutdown_stale_job_sweeper,
 )
 from app.api.error_handlers import register_exception_handlers
+from app.api.metrics_route import SCOPE_KEY, record_unmatched
 from app.api.v1 import files, health, metrics
 from app.core.config import settings
 from app.core.logging_config import configure_logging, request_id_ctx
 
 logger = logging.getLogger(__name__)
+
+CRASH_STATUS = 500
 
 
 @asynccontextmanager
@@ -61,6 +65,25 @@ def create_app() -> FastAPI:
             request_id_ctx.reset(token)
         response.headers["X-Request-ID"] = request_id
         return response
+
+    @app.middleware("http")
+    async def unmatched_request_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        # Matched requests are counted by MetricsRoute, which flips "recorded".
+        # Only requests that reach no route (unknown URL, wrong method) are
+        # counted here, under the fixed label "unmatched".
+        started = time.perf_counter()
+        holder = {"recorded": False}
+        request.scope[SCOPE_KEY] = holder
+        status_code = CRASH_STATUS
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            if not holder["recorded"]:
+                record_unmatched(request.method, status_code, started)
 
     app.include_router(health.router, prefix=settings.api_v1_prefix)
     app.include_router(files.router, prefix=settings.api_v1_prefix)
