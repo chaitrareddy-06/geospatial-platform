@@ -41,6 +41,12 @@ MAX_UTM_OFFSET_DEG = 4.0
 # Upper limit accepted for the threshold (my reasoned cap, not a standard).
 MAX_ALLOWED_OFFSET_DEG = 10.0
 
+# Real files carry float noise at the edges (the Natural Earth countries file
+# has a longitude of 180.00000000000006). Coordinates this close to the limit
+# are accepted; 1e-6 degrees is about 0.1 m on the ground. Anything further
+# out is still rejected as "not lon/lat".
+COORD_TOLERANCE_DEG = 1e-6
+
 
 @dataclass(frozen=True)
 class ProjectionChoice:
@@ -137,13 +143,17 @@ def choose_projection(
 
     if (
         not (np.isfinite(lons).all() and np.isfinite(lats).all())
-        or np.abs(lons).max() > 180.0
-        or np.abs(lats).max() > 90.0
+        or np.abs(lons).max() > 180.0 + COORD_TOLERANCE_DEG
+        or np.abs(lats).max() > 90.0 + COORD_TOLERANCE_DEG
     ):
         raise CRSResolutionError(
             "Coordinates do not look like longitude/latitude degrees.",
             details={"reason": REASON_NOT_LONLAT},
         )
+
+    # Float noise like -90.00000000000003 is pulled back onto the valid range.
+    # Longitudes need no clipping: they are wrapped onto the circle below.
+    lats = np.clip(lats, -90.0, 90.0)
 
     min_lat = float(lats.min())
     max_lat = float(lats.max())
