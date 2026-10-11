@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # a wrong guess means wrong measurements.
     assume_wgs84_if_missing_crs: bool = False
 
+    # Number of background worker threads that process uploaded files. The bounds
+    # are a sanity check: at least one worker, and a cap so a typo in .env cannot
+    # start hundreds of threads on a small machine.
+    job_workers: int = Field(default=2, ge=1, le=16)
+
 
 @lru_cache
 def get_settings() -> Settings:

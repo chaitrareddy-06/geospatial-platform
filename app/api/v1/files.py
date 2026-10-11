@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile, status
 from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import get_file_service, get_job_runner
@@ -26,6 +26,8 @@ MAX_PAGE_SIZE = 1000
     summary="Upload a KML or zipped Shapefile (processed in the background)",
 )
 async def upload_file(
+    request: Request,
+    response: Response,
     service: ServiceDep,
     runner: RunnerDep,
     file: Annotated[UploadFile, File(description="A .kml file or a .zip Shapefile")],
@@ -37,6 +39,10 @@ async def upload_file(
     # record. The slow work happens later in the job runner.
     record = await run_in_threadpool(service.submit, file.filename or "", content)
     runner.submit(record.id, content)
+    # Tell the client where to poll. Built from the request path so it is right
+    # for both /api/v1/files/ and the /api/files/ alias.
+    base = request.url.path.rstrip("/")
+    response.headers["Location"] = f"{base}/{record.id}/"
     return FileOut.from_record(record)
 
 

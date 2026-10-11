@@ -12,9 +12,6 @@ from app.repositories.in_memory_file_repository import InMemoryFileRepository
 from app.services.file_service import FileService
 from app.workers.job_runner import JobRunner, ThreadPoolJobRunner
 
-# Becomes a setting later; a constant keeps config.py untouched for now.
-JOB_WORKERS = 2
-
 
 @lru_cache
 def get_repository() -> InMemoryFileRepository:
@@ -42,7 +39,7 @@ def get_file_service() -> FileService:
 @lru_cache
 def get_job_runner() -> JobRunner:
     """One background runner for the whole process. A Redis runner replaces it later."""
-    return ThreadPoolJobRunner(get_file_service(), max_workers=JOB_WORKERS)
+    return ThreadPoolJobRunner(get_file_service(), max_workers=settings.job_workers)
 
 
 def shutdown_job_runner() -> None:
