@@ -1,0 +1,316 @@
+{
+  "machine": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.0",
+    "cpu_cores": 10,
+    "cpu_threads": 12,
+    "ram_gb": 7.7
+  },
+  "repeats": 5,
+  "sizes": [
+    {
+      "features": 100,
+      "repeats": 5,
+      "total_s_median": 0.038,
+      "total_s_min": 0.037,
+      "total_s_max": 0.204,
+      "features_per_s_median": 2598.6,
+      "peak_mb_max": 107.7,
+      "all_runs": [
+        {
+          "file": "polygon_100.zip",
+          "zip_kb": 6.0,
+          "features": 100,
+          "parse_s": 0.166,
+          "process_s": 0.038,
+          "total_s": 0.204,
+          "features_per_s": 490.7,
+          "cpu_s": 0.109,
+          "cpu_percent_of_one_core": 53.7,
+          "baseline_mb": 102.8,
+          "peak_mb": 107.4
+        },
+        {
+          "file": "polygon_100.zip",
+          "zip_kb": 6.0,
+          "features": 100,
+          "parse_s": 0.047,
+          "process_s": 0.008,
+          "total_s": 0.055,
+          "features_per_s": 1832.7,
+          "cpu_s": 0.031,
+          "cpu_percent_of_one_core": 57.3,
+          "baseline_mb": 102.8,
+          "peak_mb": 107.4
+        },
+        {
+          "file": "polygon_100.zip",
+          "zip_kb": 6.0,
+          "features": 100,
+          "parse_s": 0.029,
+          "process_s": 0.008,
+          "total_s": 0.038,
+          "features_per_s": 2664.7,
+          "cpu_s": 0.031,
+          "cpu_percent_of_one_core": 83.3,
+          "baseline_mb": 102.9,
+          "peak_mb": 107.6
+        },
+        {
+          "file": "polygon_100.zip",
+          "zip_kb": 6.0,
+          "features": 100,
+          "parse_s": 0.031,
+          "process_s": 0.008,
+          "total_s": 0.038,
+          "features_per_s": 2598.6,
+          "cpu_s": 0.016,
+          "cpu_percent_of_one_core": 40.6,
+          "baseline_mb": 102.9,
+          "peak_mb": 107.4
+        },
+        {
+          "file": "polygon_100.zip",
+          "zip_kb": 6.0,
+          "features": 100,
+          "parse_s": 0.029,
+          "process_s": 0.008,
+          "total_s": 0.037,
+          "features_per_s": 2686.2,
+          "cpu_s": 0.031,
+          "cpu_percent_of_one_core": 83.9,
+          "baseline_mb": 102.9,
+          "peak_mb": 107.7
+        }
+      ]
+    },
+    {
+      "features": 1000,
+      "repeats": 5,
+      "total_s_median": 0.095,
+      "total_s_min": 0.091,
+      "total_s_max": 0.107,
+      "features_per_s_median": 10500.6,
+      "peak_mb_max": 109.1,
+      "all_runs": [
+        {
+          "file": "polygon_1000.zip",
+          "zip_kb": 52.3,
+          "features": 1000,
+          "parse_s": 0.04,
+          "process_s": 0.055,
+          "total_s": 0.095,
+          "features_per_s": 10500.6,
+          "cpu_s": 0.094,
+          "cpu_percent_of_one_core": 98.4,
+          "baseline_mb": 102.6,
+          "peak_mb": 108.9
+        },
+        {
+          "file": "polygon_1000.zip",
+          "zip_kb": 52.3,
+          "features": 1000,
+          "parse_s": 0.039,
+          "process_s": 0.057,
+          "total_s": 0.096,
+          "features_per_s": 10438.0,
+          "cpu_s": 0.094,
+          "cpu_percent_of_one_core": 97.9,
+          "baseline_mb": 102.7,
+          "peak_mb": 109.0
+        },
+        {
+          "file": "polygon_1000.zip",
+          "zip_kb": 52.3,
+          "features": 1000,
+          "parse_s": 0.039,
+          "process_s": 0.052,
+          "total_s": 0.091,
+          "features_per_s": 11045.1,
+          "cpu_s": 0.094,
+          "cpu_percent_of_one_core": 103.5,
+          "baseline_mb": 102.6,
+          "peak_mb": 109.0
+        },
+        {
+          "file": "polygon_1000.zip",
+          "zip_kb": 52.3,
+          "features": 1000,
+          "parse_s": 0.037,
+          "process_s": 0.054,
+          "total_s": 0.091,
+          "features_per_s": 10947.1,
+          "cpu_s": 0.078,
+          "cpu_percent_of_one_core": 85.5,
+          "baseline_mb": 102.5,
+          "peak_mb": 109.0
+        },
+        {
+          "file": "polygon_1000.zip",
+          "zip_kb": 52.3,
+          "features": 1000,
+          "parse_s": 0.042,
+          "process_s": 0.065,
+          "total_s": 0.107,
+          "features_per_s": 9312.4,
+          "cpu_s": 0.109,
+          "cpu_percent_of_one_core": 101.9,
+          "baseline_mb": 102.6,
+          "peak_mb": 109.1
+        }
+      ]
+    },
+    {
+      "features": 10000,
+      "repeats": 5,
+      "total_s_median": 0.723,
+      "total_s_min": 0.683,
+      "total_s_max": 0.757,
+      "features_per_s_median": 13830.4,
+      "peak_mb_max": 123.5,
+      "all_runs": [
+        {
+          "file": "polygon_10000.zip",
+          "zip_kb": 514.3,
+          "features": 10000,
+          "parse_s": 0.151,
+          "process_s": 0.58,
+          "total_s": 0.731,
+          "features_per_s": 13686.7,
+          "cpu_s": 0.703,
+          "cpu_percent_of_one_core": 96.2,
+          "baseline_mb": 103.2,
+          "peak_mb": 123.5
+        },
+        {
+          "file": "polygon_10000.zip",
+          "zip_kb": 514.3,
+          "features": 10000,
+          "parse_s": 0.186,
+          "process_s": 0.537,
+          "total_s": 0.723,
+          "features_per_s": 13830.4,
+          "cpu_s": 0.641,
+          "cpu_percent_of_one_core": 88.6,
+          "baseline_mb": 102.9,
+          "peak_mb": 123.2
+        },
+        {
+          "file": "polygon_10000.zip",
+          "zip_kb": 514.3,
+          "features": 10000,
+          "parse_s": 0.151,
+          "process_s": 0.606,
+          "total_s": 0.757,
+          "features_per_s": 13204.7,
+          "cpu_s": 0.734,
+          "cpu_percent_of_one_core": 97.0,
+          "baseline_mb": 102.6,
+          "peak_mb": 123.0
+        },
+        {
+          "file": "polygon_10000.zip",
+          "zip_kb": 514.3,
+          "features": 10000,
+          "parse_s": 0.161,
+          "process_s": 0.543,
+          "total_s": 0.704,
+          "features_per_s": 14203.2,
+          "cpu_s": 0.672,
+          "cpu_percent_of_one_core": 95.4,
+          "baseline_mb": 103.2,
+          "peak_mb": 123.5
+        },
+        {
+          "file": "polygon_10000.zip",
+          "zip_kb": 514.3,
+          "features": 10000,
+          "parse_s": 0.15,
+          "process_s": 0.532,
+          "total_s": 0.683,
+          "features_per_s": 14647.0,
+          "cpu_s": 0.656,
+          "cpu_percent_of_one_core": 96.1,
+          "baseline_mb": 103.1,
+          "peak_mb": 123.5
+        }
+      ]
+    },
+    {
+      "features": 100000,
+      "repeats": 5,
+      "total_s_median": 7.019,
+      "total_s_min": 6.829,
+      "total_s_max": 7.731,
+      "features_per_s_median": 14247.5,
+      "peak_mb_max": 266.5,
+      "all_runs": [
+        {
+          "file": "polygon_100000.zip",
+          "zip_kb": 5130.0,
+          "features": 100000,
+          "parse_s": 1.388,
+          "process_s": 5.441,
+          "total_s": 6.829,
+          "features_per_s": 14642.6,
+          "cpu_s": 6.797,
+          "cpu_percent_of_one_core": 99.5,
+          "baseline_mb": 107.7,
+          "peak_mb": 265.5
+        },
+        {
+          "file": "polygon_100000.zip",
+          "zip_kb": 5130.0,
+          "features": 100000,
+          "parse_s": 1.42,
+          "process_s": 5.732,
+          "total_s": 7.153,
+          "features_per_s": 13980.8,
+          "cpu_s": 7.078,
+          "cpu_percent_of_one_core": 99.0,
+          "baseline_mb": 107.5,
+          "peak_mb": 265.8
+        },
+        {
+          "file": "polygon_100000.zip",
+          "zip_kb": 5130.0,
+          "features": 100000,
+          "parse_s": 1.542,
+          "process_s": 5.477,
+          "total_s": 7.019,
+          "features_per_s": 14247.5,
+          "cpu_s": 6.953,
+          "cpu_percent_of_one_core": 99.1,
+          "baseline_mb": 107.4,
+          "peak_mb": 265.5
+        },
+        {
+          "file": "polygon_100000.zip",
+          "zip_kb": 5130.0,
+          "features": 100000,
+          "parse_s": 1.508,
+          "process_s": 5.347,
+          "total_s": 6.855,
+          "features_per_s": 14588.5,
+          "cpu_s": 6.703,
+          "cpu_percent_of_one_core": 97.8,
+          "baseline_mb": 107.6,
+          "peak_mb": 265.4
+        },
+        {
+          "file": "polygon_100000.zip",
+          "zip_kb": 5130.0,
+          "features": 100000,
+          "parse_s": 1.713,
+          "process_s": 6.018,
+          "total_s": 7.731,
+          "features_per_s": 12934.6,
+          "cpu_s": 7.609,
+          "cpu_percent_of_one_core": 98.4,
+          "baseline_mb": 107.7,
+          "peak_mb": 266.5
+        }
+      ]
+    }
+  ]
+}
