@@ -9,6 +9,9 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import box
 
+from app.repositories.in_memory_feature_result_repository import (
+    InMemoryFeatureResultRepository,
+)
 from app.repositories.in_memory_file_repository import InMemoryFileRepository
 from app.services.file_service import FileService
 
@@ -74,16 +77,22 @@ def shapefile_zip(tmp_path):
 
 @pytest.fixture
 def make_service():
-    """Factory: a FileService on a fresh in-memory repository."""
+    """Factory: a FileService on fresh in-memory repositories."""
 
     def build(
         *,
         assume_wgs84_if_missing: bool = False,
         max_upload_size_bytes: int = 50 * 1024 * 1024,
         repository: InMemoryFileRepository | None = None,
+        feature_repository: InMemoryFeatureResultRepository | None = None,
     ) -> FileService:
         return FileService(
             repository if repository is not None else InMemoryFileRepository(),
+            feature_repository=(
+                feature_repository
+                if feature_repository is not None
+                else InMemoryFeatureResultRepository()
+            ),
             assume_wgs84_if_missing=assume_wgs84_if_missing,
             max_utm_offset_deg=4.0,
             max_upload_size_bytes=max_upload_size_bytes,
